@@ -1,0 +1,35 @@
+# Secrets and local configuration
+local_environment/.env
+.env.*
+!local_environment/.env.example
+
+# Python
+__pycache__/
+*.log
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+
+# Geospatial data and generated outputs
+*.gpkg
+*.shp
+*.dbf
+*.cpg
+*.prj
+*.shx
+*.aux
+*.tif
+*.tiff
+*.txt
+
+# Local data and storage
+rustfs-data/
+app-data/
+data/
+datalake/
+
+# Global datasets / generated files (only if these are local data)
+global*

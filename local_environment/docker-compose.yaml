@@ -1,0 +1,88 @@
+
+services:
+  prefect-server:
+    image: prefecthq/prefect:3-latest
+    # Pin to the same version as in environment.yml
+    command: prefect server start --host 0.0.0.0
+    ports:
+      - "4200:4200"
+    volumes:
+      - prefect-data:/root/.prefect
+    restart: unless-stopped
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    # Pin a specific tag once things work
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:?Set RUSTFS_ACCESS_KEY in .env}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:?Set RUSTFS_SECRET_KEY in .env}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      # Default: ./rustfs-data next to this file
+      - ${RUSTFS_DATA_DIR:-./rustfs-data}:/data
+    restart: unless-stopped
+
+  create-bucket:
+    image: python:3.12-slim
+    depends_on:
+      - rustfs
+    environment:
+      S3_ENDPOINT_URL: http://rustfs:9000
+      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET:-portofolio_bucket}
+    command:
+      - /bin/sh
+      - -c
+      - |
+        pip install boto3 &&
+        python -c "import boto3, os, time; s=boto3.client('s3', endpoint_url=os.environ['S3_ENDPOINT_URL'], region_name='us-east-1'); b=os.environ['S3_BUCKET']; \
+        exec('for i in range(30):\n try:\n  s.head_bucket(Bucket=b); print(\"Bucket already exists:\", b); break\n except Exception:\n  try:\n   s.create_bucket(Bucket=b); print(\"Bucket created:\", b); break\n  except Exception:\n   time.sleep(2)\nelse: raise RuntimeError(\"Could not connect to RustFS or create bucket\")')"
+    restart: "no"
+
+  init-stac:
+    build:
+      context: ..
+      dockerfile: local_environment/Dockerfile
+    depends_on:
+      create-bucket:
+        condition: service_completed_successfully
+    entrypoint: ["python", "src/init_stac.py"]
+    environment:
+      S3_ENDPOINT_URL: http://rustfs:9000
+      S3_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      S3_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET:-portofolio}
+      S3_REGION: us-east-1
+    restart: "no"
+
+  app:
+    build:
+      context: ..
+      dockerfile: local_environment/Dockerfile
+    depends_on:
+      prefect-server:
+        condition: service_started
+      rustfs:
+        condition: service_started
+      create-bucket:
+        condition: service_completed_successfully
+      init-stac:
+        condition: service_completed_successfully
+    restart: on-failure
+    environment:
+      PREFECT_API_URL: http://prefect-server:4200/api
+      S3_ENDPOINT_URL: http://rustfs:9000
+      S3_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      S3_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET:-portofolio}
+      S3_REGION: us-east-1
+      APP_ENTRYPOINT: ${APP_ENTRYPOINT:-src/app.py}
+    volumes:
+      # Default: ./app-data next to this file
+      - ${APP_DATA_DIR:-./app-data}:/data
+
+volumes:
+  prefect-data:
