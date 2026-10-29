@@ -30,6 +30,13 @@ async def evacuation_routes_processing():
     evacuation_route_starting_point_shp_file_path =  await create_evacuation_routes_start_point(aoi_shp_file_path)
 
     aoi_gdf = gpd.read_file(aoi_shp_file_path)
+
+    # TODO ADD THIS TO A PREPROCESS STEP
+    #######################################
+    aoi_gdf['AOI'] = "AOI01"
+    aoi_gdf.to_file(aoi_shp_file_path)
+    ########################################
+
     evacuation_route_starting_point_gdf = gpd.read_file(evacuation_route_starting_point_shp_file_path)
     # Reproject to aoi crs
     evacuation_route_starting_point_gdf = evacuation_route_starting_point_gdf.to_crs(aoi_gdf.crs)
@@ -53,7 +60,7 @@ async def area_based_processing(aoi_shp_file_path, coordinates: str):
     """
     # Define required paths
     logger = get_logger()
-    logger.info("[S8-02-MG03-MB02] Area-based processing subflow started...")
+    logger.info("Evacuation Routes Calculation and Generation subflow started...")
     current_path = os.path.dirname(os.path.abspath(__file__))
     relative_script_path_er = os.path.join("scripts", "app.py")
     script_er = os.path.join(current_path, relative_script_path_er)
@@ -72,13 +79,13 @@ async def area_based_processing(aoi_shp_file_path, coordinates: str):
     result = subprocess.run(["python", script_er] + evac_args, capture_output=True, text=True)
     if result.returncode == 0:
         logger.info(
-            "[S8-02-MG03-MB02] Area-based processing -> Area-based processing finished successfully")
+            "Evacuation Routes Calculation and Generation-> Evacuation Routes Calculation and Generation subflow finished successfully")
     else:
         logger.error(
-            f"[S8-02-MG03-MB02] Area-based processing -> Area-based processing failed with return code: {result.returncode}")
+            f"Evacuation Routes Calculation and Generation-> Evacuation Routes Calculation and Generation subflow failed with return code: {result.returncode}")
         raise RuntimeError(f"[S8-02-MG03-MB02] Area-based processing -> Error output: {result.stderr}")
 
-    logger.info("[S8-02-MG03-MB02] Area-based processing subflow finished...")
+    logger.info("Evacuation Routes Calculation and Generation subflow finished...")
 
 
 @flow(name="Evacuation Routes Start Point Calculation", log_prints=True)

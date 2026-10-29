@@ -36,7 +36,7 @@ collection = {
         },
         {
             "rel": "root",
-            "href": "./catalog.json",
+            "href": "./collection.json",
             "type": "application/json",
         },
     ],

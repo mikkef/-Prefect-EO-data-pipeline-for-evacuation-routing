@@ -36,8 +36,8 @@ from constants import (
     preprocessed_surfaces_dir,
     training_aois_dir,
     inference_aois_dir,
-    CONFIG_PATH,
-    STAC_COLLECTION
+    # CONFIG_PATH,
+    STAC_COLLECTION, silver_zone_path
 )
 import pystac
 from pystac.stac_io import DefaultStacIO
@@ -60,7 +60,7 @@ from src.evacuation_routes_mapping.processing_flow import evacuation_routes_proc
 # ---------------------------------------------------------------------------
 
 current_file = Path(__file__).resolve()
-root_path = current_file.parent
+root_path = Path("/data")
 
 LABEL_FIELD = "LABELING"
 CLASS_FIELD = "surface_L1"
@@ -74,7 +74,7 @@ BALANCE = "downsample_all"
 FEATURE_COUNTS = [120]
 
 # The best model is saved here
-MODEL_PATH = "models/best_model.pkl"
+MODEL_PATH = Path(__file__).resolve().parent / "models" / "best_model.pkl"
 
 # Ingestion: retries and concurrency
 DOWNLOAD_RETRIES = 3
@@ -278,6 +278,7 @@ async def infer_aoi(aoi, data: dict, best: dict, surface="road"):
         pixel_output_path=pixel_output_path,
         buffer_distance=INFERENCE_BUFFER_DISTANCE,
         threshold=INFERENCE_THRESHOLD,
+        logger=logger
 
     )
 
@@ -337,12 +338,23 @@ def bbox_contains(outer, inner):
 
 async def evacuation_routes_processing_flow():
     await evacuation_routes_processing()
+    await asyncio.to_thread(
+        upload_shapefile_to_bucket, f"{silver_zone_path}/evacuation_routes_line.shp", "datalake/gold_zone"
+    )
+
+    await asyncio.to_thread(
+        upload_shapefile_to_bucket, f"{silver_zone_path}/evacuation_routes_point.shp",
+        "datalake/gold_zone"
+    )
+
 
 @flow(name="evacuation-routes-calculation")
 def evacuation_routes_flow():
     logger = get_run_logger()
     logger.info("Beginning evauation-routes-calculation flow..")
-    return asyncio.run(evacuation_routes_processing_flow())
+    state = asyncio.run(evacuation_routes_processing_flow())
+    if state:
+        logger.info("evacuation-routes-calculation flow completed successfully")
 
 
 @flow(name="embedding-based-surface-classification")
@@ -350,6 +362,9 @@ def rem_flow(params: dict = {"bbox": []}):
 
     logger = get_run_logger()
     s3 = s3_client()
+
+    logger.info(f"root_path = {root_path.resolve()}")
+    logger.info(f"working directory = {Path.cwd()}")
 
     for zone, subdirs in DATALAKE_HIERARCHY.items():
         zone_path = root_path / "datalake" / zone
@@ -421,11 +436,11 @@ def rem_flow(params: dict = {"bbox": []}):
 
 
     logger.info("Selected mode: %s", mode)
-    with CONFIG_PATH.open("r", encoding="utf-8") as file:
-        config = yaml.safe_load(file)
-
-    mode = config.get("mode", "inference").lower()
-    print(f"Mode: {mode} was selected..")
+    # with CONFIG_PATH.open("r", encoding="utf-8") as file:
+    #     config = yaml.safe_load(file)
+    #
+    # mode = config.get("mode", "inference").lower()
+    # print(f"Mode: {mode} was selected..")
 
     if mode == "training":
         return asyncio.run(training_flow())

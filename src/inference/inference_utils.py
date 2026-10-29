@@ -15,7 +15,6 @@ from disk with load_saved_model().
 
 from pathlib import Path
 from typing import Optional, Sequence
-
 import geopandas as gpd
 import joblib
 import numpy as np
@@ -41,7 +40,7 @@ class SavedModel:
         return self.pipeline.predict_proba(X)
 
 
-def load_saved_model(model_path: str):
+def load_saved_model(model_path: str, logger):
     """
     Load a model saved by train_best_model().
 
@@ -54,9 +53,9 @@ def load_saved_model(model_path: str):
 
     model = SavedModel(bundle["pipeline"], bundle["classes"])
 
-    print(f"Loaded model: {bundle.get('model_name')}")
-    print(f"  Features: {len(bundle['features'])}")
-    print(f"  Classes:  {bundle['classes']}")
+    logger.info(f"Loaded model: {bundle.get('model_name')}")
+    logger.info(f"  Features: {len(bundle['features'])}")
+    logger.info(f"  Classes:  {bundle['classes']}")
 
     return model, list(bundle["features"])
 
@@ -127,6 +126,7 @@ def _read_roads(roads_path):
 # 1. Infer surface class for each road
 # ---------------------------------------------------------------------------
 def infer_roads(
+    logger,
     raster_path: str,
     roads_path: str,
     model,
@@ -156,9 +156,9 @@ def infer_roads(
             src, selected_features, band_prefix
         )
 
-        print("\nInference features:")
-        print(f"Using {len(feature_names)} features:")
-        print(feature_names)
+        logger.info("\nInference features:")
+        logger.info(f"Using {len(feature_names)} features:")
+        logger.info(feature_names)
 
         roads["inference"] = "uncertain"
         roads["confidence"] = np.nan
@@ -208,7 +208,7 @@ def infer_roads(
             else:
                 roads.at[idx, "inference"] = "uncertain"
 
-            print(
+            logger.info(
                 f"Road {idx}: {roads.at[idx, 'inference']} "
                 f"({confidence:.1%}, {len(predictions)} pixels)"
             )
@@ -217,9 +217,9 @@ def infer_roads(
 
     roads.to_file(output_path, driver="ESRI Shapefile")
 
-    print(f"\nWrote inferred roads -> {output_path}")
-    print("\nInference summary:")
-    print(roads["inference"].value_counts())
+    logger.info(f"\nWrote inferred roads -> {output_path}")
+    logger.info("\nInference summary:")
+    logger.info(roads["inference"].value_counts())
 
     return roads
 
@@ -255,6 +255,7 @@ PAVED_NAMES = {
 
 
 def create_pixel_inference_raster(
+    logger,
     raster_path: str,
     roads_path: str,
     model,
@@ -286,9 +287,9 @@ def create_pixel_inference_raster(
             src, selected_features, band_prefix
         )
 
-        print("\nPixel inference features:")
-        print(f"Using {len(feature_names)} features:")
-        print(feature_names)
+        logger.info("\nPixel inference features:")
+        logger.info(f"Using {len(feature_names)} features:")
+        logger.info(feature_names)
 
         # ------------------------------------------------------------
         # Model classes
@@ -314,12 +315,12 @@ def create_pixel_inference_raster(
                     "Add it to PAVED_NAMES or UNPAVED_NAMES."
                 )
 
-        print("\nModel classes:")
-        print(model_classes)
-        print("\nPaved classes:")
-        print([model_classes[i] for i in paved_indices])
-        print("\nUnpaved classes:")
-        print([model_classes[i] for i in unpaved_indices])
+        logger.info("\nModel classes:")
+        logger.info(model_classes)
+        logger.info("\nPaved classes:")
+        logger.info([model_classes[i] for i in paved_indices])
+        logger.info("\nUnpaved classes:")
+        logger.info([model_classes[i] for i in unpaved_indices])
 
         # ------------------------------------------------------------
         # Output arrays
@@ -380,7 +381,7 @@ def create_pixel_inference_raster(
             paved_confidence[valid_rows, valid_cols] = paved_prob
             unpaved_confidence[valid_rows, valid_cols] = unpaved_prob
 
-            print(f"Processed road {idx}: {len(X)} pixels")
+            logger.info(f"Processed road {idx}: {len(X)} pixels")
 
         # ------------------------------------------------------------
         # Write GeoTIFF
@@ -414,7 +415,7 @@ def create_pixel_inference_raster(
                 selected_features=",".join(feature_names),
             )
 
-    print(f"\nWrote pixel inference raster -> {output_path}")
+    logger.info(f"\nWrote pixel inference raster -> {output_path}")
 
     return {
         "output_path": output_path,
@@ -429,6 +430,7 @@ def create_pixel_inference_raster(
 # 3. Run both for one raster / roads shapefile
 # ---------------------------------------------------------------------------
 def infer_raster(
+    logger,
     raster_path: str,
     roads_path: str,
     model=None,
@@ -438,6 +440,7 @@ def infer_raster(
     pixel_output_path: str = "surface_roads_per_pixel_inference.tif",
     buffer_distance: float = 3.0,
     threshold: float = 0.70,
+
 ) -> dict:
     """
     Pass either a trained `model` (+ `selected_features`) or the path of a
@@ -447,7 +450,7 @@ def infer_raster(
     if model is None:
         if model_path is None:
             raise ValueError("Pass either `model` or `model_path`.")
-        model, saved_features = load_saved_model(model_path)
+        model, saved_features = load_saved_model(model_path, logger)
         if selected_features is None:
             selected_features = saved_features
 
@@ -462,6 +465,7 @@ def infer_raster(
         buffer_distance=buffer_distance,
         threshold=threshold,
         selected_features=selected_features,
+        logger=logger
     )
 
     # ------------------------------------------------------------
@@ -474,31 +478,10 @@ def infer_raster(
         output_path=pixel_output_path,
         buffer_distance=buffer_distance,
         selected_features=selected_features,
+        logger=logger
     )
 
     return {
         # "inferred_roads": inferred_roads,
         "pixel_raster_info": pixel_raster_info,
     }
-
-
-if __name__ == "__main__":
-
-    roads_path = (
-        "C:/Users/kefalakis/Downloads/"
-        "road_network_03_labels/"
-        "road_network_03_labels.shp"
-    )
-
-    raster_path = (
-        "E:/Programming/SIG/"
-        "surface_type_feasibility_analysis/"
-        "tessera_output/"
-        "tessera_mosaic_clipped.tif"
-    )
-
-    infer_raster(
-        raster_path=raster_path,
-        roads_path=roads_path,
-        model_path="best_model.pkl",
-    )

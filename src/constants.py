@@ -1,18 +1,18 @@
 from pathlib import Path
 
 current_file = Path(__file__).resolve()
-src_dir = current_file.parent
+root_path = Path("/data")
 
-raw_zone_path = src_dir / "datalake" / "raw_zone"
-silver_zone_path = src_dir / "datalake" / "silver_zone"
-gold_zone_path = src_dir / "datalake" / "gold_zone"
+raw_zone_path = root_path / "datalake" / "raw_zone"
+silver_zone_path = root_path / "datalake" / "silver_zone"
+gold_zone_path = root_path / "datalake" / "gold_zone"
 
 # STAC
-STAC_CATALOG_PATH = src_dir / "stac_catalog"
+STAC_CATALOG_PATH = root_path / "stac_catalog"
 STAC_COLLECTION = "stac_catalog/collection.json" # RELATIVE TO S3 BUCKET
 
 # Raw Zone directory paths
-CONFIG_PATH = src_dir / "configuration.yaml"
+# CONFIG_PATH = root_path / "configuration.yaml"
 training_aois_dir = raw_zone_path / "training_aois"
 inference_aois_dir = raw_zone_path / "inference_aois"
 osm_ingested_surfaces_dir = raw_zone_path / "retrieved_surfaces"

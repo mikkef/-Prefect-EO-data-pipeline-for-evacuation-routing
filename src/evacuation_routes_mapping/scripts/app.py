@@ -96,15 +96,13 @@ def run_evacuation(aoi_path,start_point,outfolder):
     routes_crs = routes.to_crs(aoi.crs)
     routes_crs = routes_crs.drop(columns='AOI')
     routes_crs['AOI_name'] = aoi['AOI'].iloc[0]
-    routes_crs.to_file(os.path.join(outfolder,'evacuation_routes_line_01_intermediate.shp'))
-    routes_crs.to_file(os.path.join(outfolder,'evacuation_routes_line_02_edit.shp'))
+    routes_crs.to_file(os.path.join(outfolder,'evacuation_routes_line.shp'))
 
     point_directions = planner.points_at_thirds_with_direction(routes)
     point_directions = enforceOutputDtypes(point_directions, INT32_OUTPUT_COLUMNS)
     point_directions_crs = point_directions.to_crs(aoi.crs)
     point_directions_crs['AOI_name'] = aoi['AOI'].iloc[0]
-    point_directions_crs.to_file(os.path.join(outfolder,'evacuation_routes_point_01_intermediate.shp'))
-    point_directions_crs.to_file(os.path.join(outfolder,'evacuation_routes_point_02_edit.shp'))
+    point_directions_crs.to_file(os.path.join(outfolder,'evacuation_routes_point.shp'))
 
 
 def enforceOutputDtypes(gdf, int32_cols=None, float32_cols=None, str_cols=None):
