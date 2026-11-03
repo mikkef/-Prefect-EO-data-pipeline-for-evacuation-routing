@@ -1,0 +1,43 @@
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ci:
+    name: Build and Test Application
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 1. Build Docker image (creates Conda environment)
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t embedding-based-surface-classification:latest \
+            -f local_environment/Dockerfile \
+            .
+
+      # 2. Compile Python source inside Docker
+      - name: Build Application
+        run: |
+          docker run --rm \
+            --entrypoint python \
+            embedding-based-surface-classification:latest \
+            -m compileall -q src/
+
+      # 3. Run pytest inside Docker
+      - name: Run Unit Tests
+        run: |
+          docker run --rm \
+            --entrypoint python \
+            embedding-based-surface-classification:latest \
+            -m pytest src/tests/

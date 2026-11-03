@@ -193,6 +193,7 @@ dependencies:
   - pyarrow
   - pyarrow-core
   - pygments
+  - pytest
   - pyogrio
   - pyparsing
   - pyproj
